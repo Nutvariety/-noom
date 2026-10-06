@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ไทม์ไลน์ไทย AR - เกมลอยลงมาหยิบลงกล่อง</title>
+    
+    <!-- Google Fonts: Mali & Niramit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Mali:ital,wght@0,400;0,600;0,700;1,500&family=Niramit:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mali: ['Mali', 'cursive', 'sans-serif'],
+                        niramit: ['Niramit', 'sans-serif']
+                    },
+                    colors: {
+                        vintage: {
+                            50: '#fdfbf7',
+                            100: '#f7f2e7',
+                            200: '#ebdcc3',
+                            300: '#dfc29a',
+                            700: '#7a5230',
+                            800: '#52341b',
+                            900: '#36210f',
+                            gold: '#d4af37',
+                            brass: '#fbbf24'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- MediaPipe Hands CDN Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+
+    <style>
+        /* Base Styling & Vintage Theme */
+        body {
+            font-family: 'Mali', cursive, sans-serif;
+            background-color: #2b1810;
+            color: #36210f;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        h1, h2, h3, .heading-font {
+            font-family: 'Niramit', sans-serif;
+        }
+
+        /* Glassmorphism & Vintage UI Components */
+        .vintage-panel {
+            background: rgba(247, 242, 231, 0.92);
+            backdrop-filter: blur(8px);
+            border: 3px solid #7a5230;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(122, 82, 48, 0.2);
+            border-radius: 1rem;
+        }
+
+        .gold-border-glow {
+            box-shadow: 0 0 20px rgba(251, 191, 36, 0.6), inset 0 0 10px rgba(251, 191, 36, 0.4);
+        }
+
+        /* Animations */
+        @keyframes floatBg {
+            0% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-15px) rotate(3deg); }
+            100% { transform: translateY(0px) rotate(0deg); }
+        }
+
+        .floating-icon {
+            animation: floatBg 6s ease-in-out infinite;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-10px); }
+            40%, 80% { transform: translateX(10px); }
+        }
+
+        .animate-shake {
+            animation: shake 0.4s ease-in-out;
+        }
+
+        @keyframes popGlow {
+            0% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.08); filter: brightness(1.3); }
+            100% { transform: scale(1); filter: brightness(1); }
+        }
+
+        .animate-pop {
+            animation: popGlow 0.4s ease-out;
+        }
+
+        /* Certificate Print / Styling */
+        .certificate-bg {
+            background: #fdfbf7;
+            background-image: 
+                radial-gradient(#dfc29a 0.75px, transparent 0.75px),
+                radial-gradient(#dfc29a 0.75px, #fdfbf7 0.75px);
+            background-size: 30px 30px;
+            background-position: 0 0, 15px 15px;
+        }
+
+        .dashed-input {
+            border: none;
+            border-bottom: 2px dashed #7a5230;
+            background: transparent;
+            text-align: center;
+            outline: none;
+        }
+
+        /* Custom Scrollbar for list if needed */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #7a5230;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="w-screen h-screen relative bg-amber-950 overflow-hidden flex flex-col items-center justify-center">
+
+    <!-- Floating Thai Vintage Background Decoration Graphics -->
+    <div class="absolute inset-0 pointer-events-none opacity-20 overflow-hidden z-0">
+        <div class="floating-icon absolute top-10 left-10 text-6xl text-amber-200" style="animation-delay: 0s;">🛕</div>
+        <div class="floating-icon absolute top-20 right-16 text-7xl text-amber-200" style="animation-delay: 1.5s;">🐘</div>
+        <div class="floating-icon absolute bottom-32 left-20 text-6xl text-amber-200" style="animation-delay: 3s;">⚔️</div>
+        <div class="floating-icon absolute bottom-40 right-24 text-6xl text-amber-200" style="animation-delay: 4.5s;">📜</div>
+    </div>
+
+    <!-- Hidden Video Feed Element for MediaPipe -->
+    <video id="webcam" class="hidden" playsinline></video>
+
+    <!-- Main Game Canvas Container -->
+    <div id="game-container" class="relative w-full h-full max-w-7xl max-h-[900px] flex flex-col justify-between p-2 md:p-4 z-10">
+        
+        <!-- Canvas for WebCam & Hand Tracking Overlay & Game Physics Rendering -->
+        <canvas id="gameCanvas" class="absolute inset-0 w-full h-full rounded-2xl shadow-2xl object-cover border-4 border-amber-900 bg-black"></canvas>
+
+        <!-- In-Game UI Header (HUD) -->
+        <div id="hud" class="relative z-20 flex justify-between items-center w-full px-4 pt-2 pointer-events-none opacity-0 transition-opacity duration-500">
+            <!-- Timer Card -->
+            <div class="vintage-panel pointer-events-auto px-5 py-2 flex items-center gap-3 border-2 border-amber-700 shadow-lg">
+                <div class="w-10 h-10 rounded-full bg-amber-800 text-amber-100 flex items-center justify-center text-xl font-bold shadow">
+                    ⏱️
+                </div>
+                <div>
+                    <div class="text-xs text-amber-800 font-semibold uppercase">เวลาที่เหลือ</div>
+                    <div id="timerText" class="text-2xl md:text-3xl font-bold text-amber-950 font-mono">60s</div>
+                </div>
+            </div>
+
+            <!-- Title Header in HUD -->
+            <div class="hidden md:flex vintage-panel px-6 py-2 items-center gap-2 border-2 border-amber-700">
+                <span class="text-2xl">🇹🇭</span>
+                <span class="heading-font text-xl font-bold text-amber-900">ไทม์ไลน์ไทย AR : คัดแยกยุคสมัย</span>
+            </div>
+
+            <!-- Score Card -->
+            <div class="vintage-panel pointer-events-auto px-5 py-2 flex items-center gap-3 border-2 border-amber-700 shadow-lg">
+                <div class="w-10 h-10 rounded-full bg-yellow-600 text-amber-100 flex items-center justify-center text-xl font-bold shadow">
+                    ⭐
+                </div>
+                <div>
+                    <div class="text-xs text-amber-800 font-semibold uppercase">คะแนนสะสม</div>
+                    <div id="scoreText" class="text-2xl md:text-3xl font-bold text-yellow-700 font-mono">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dynamic Floating Text Container for Score Popups -->
+        <div id="popupContainer" class="absolute inset-0 pointer-events-none z-30 overflow-hidden"></div>
+
+        <!-- Era Target Baskets (Bottom Dock) -->
+        <div id="eraDock" class="relative z-20 w-full grid grid-cols-4 gap-2 md:gap-4 pb-2 pointer-events-none opacity-0 transition-opacity duration-500">
+            
+            <!-- 1. สุโขทัย -->
+            <div id="box-sukhothai" class="era-box bg-cyan-700/90 border-2 border-cyan-300 rounded-xl p-2 md:p-3 text-white text-center shadow-xl flex flex-col items-center justify-center transition-transform duration-200">
+                <div class="text-2xl md:text-4xl mb-1">📜</div>
+                <div class="heading-font font-bold text-xs md:text-lg text-cyan-100">สุโขทัย</div>
+                <div class="text-[10px] md:text-xs text-cyan-200 opacity-80 hidden sm:block">ศิลาจารึก / ลายสือไทย</div>
+            </div>
+
+            <!-- 2. อยุธยา -->
+            <div id="box-ayutthaya" class="era-box bg-orange-700/90 border-2 border-orange-300 rounded-xl p-2 md:p-3 text-white text-center shadow-xl flex flex-col items-center justify-center transition-transform duration-200">
+                <div class="text-2xl md:text-4xl mb-1">⚔️</div>
+                <div class="heading-font font-bold text-xs md:text-lg text-orange-100">อยุธยา</div>
+                <div class="text-[10px] md:text-xs text-orange-200 opacity-80 hidden sm:block">วีรชน / วังหลวงโบราณ</div>
+            </div>
+
+            <!-- 3. ธนบุรี -->
+            <div id="box-thonburi" class="era-box bg-purple-700/90 border-2 border-purple-300 rounded-xl p-2 md:p-3 text-white text-center shadow-xl flex flex-col items-center justify-center transition-transform duration-200">
+                <div class="text-2xl md:text-4xl mb-1">🐎</div>
+                <div class="heading-font font-bold text-xs md:text-lg text-purple-100">ธนบุรี</div>
+                <div class="text-[10px] md:text-xs text-purple-200 opacity-80 hidden sm:block">กู้เอกราช / ค่ายบางกุ้ง</div>
+            </div>
+
+            <!-- 4. รัตนโกสินทร์ -->
+            <div id="box-rattanakosin" class="era-box bg-yellow-600/90 border-2 border-yellow-200 rounded-xl p-2 md:p-3 text-white text-center shadow-xl flex flex-col items-center justify-center transition-transform duration-200">
+                <div class="text-2xl md:text-4xl mb-1">🏰</div>
+                <div class="heading-font font-bold text-xs md:text-lg text-yellow-100">รัตนโกสินทร์</div>
+                <div class="text-[10px] md:text-xs text-yellow-200 opacity-80 hidden sm:block">วัดพระแก้ว / เลิกทาส</div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Start Screen Overlay Modal -->
+    <div id="startModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md">
+        <div class="vintage-panel max-w-xl w-full p-6 md:p-8 text-center relative border-4 border-amber-700 shadow-2xl">
+            <!-- Modal Header -->
+            <div class="w-20 h-20 bg-amber-800 rounded-full mx-auto -mt-16 border-4 border-amber-300 flex items-center justify-center text-4xl shadow-lg">
+                📜
+            </div>
+            
+            <h1 class="heading-font text-3xl md:text-4xl font-bold text-amber-950 mt-4 mb-2">
+                ไทม์ไลน์ไทย AR
+            </h1>
+            <p class="text-amber-800 text-sm md:text-base font-semibold mb-6">
+                เกมคัดแยกเหตุการณ์และบุคคลสำคัญลงกล่องยุคสมัย
+            </p>
+
+            <!-- Instructions Box -->
+            <div class="bg-amber-100/80 rounded-xl p-4 border border-amber-300 text-left mb-6 space-y-3 text-xs md:text-sm text-amber-900">
+                <div class="font-bold text-amber-950 text-base flex items-center gap-2">
+                    <i class="fa-solid fa-gamepad text-amber-700"></i> วิธีการเล่น:
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="text-xl">🖐️</span>
+                    <span><strong>กล้อง AR (แนะนำ):</strong> ชูมือขึ้นหน้ากล้อง นำปลายนิ้วชี้และนิ้วโป้งแตะกัน <strong>(ท่าจีบ 🤏)</strong> เพื่อ "คีบ" ข้อมูลประวัติศาสตร์ที่ลอยลงมา แล้วลากไปปล่อยลงในกล่องยุคสมัยให้ถูกต้อง</span>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="text-xl">🖱️️</span>
+                    <span><strong>ระบบสัมผัส/เมาส์ (สำรอง):</strong> คลิกเมาส์ลาก หรือสัมผัสหน้าจอลากไอเทมไปหย่อนในกล่องสีต่างๆ ได้เช่นกัน</span>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="text-xl">⏳</span>
+                    <span><strong>เวลาจำกัด:</strong> มีเวลา 60 วินาที คัดแยกให้ได้คะแนนมากที่สุด!</span>
+                </div>
+            </div>
+
+            <!-- Status Indicator & Start Button -->
+            <div class="space-y-3">
+                <div id="cameraStatus" class="text-xs md:text-sm text-amber-700 font-semibold flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-spinner fa-spin text-amber-600"></i> กำลังโหลดระบบกล้องและ AI Hand Tracking...
+                </div>
+
+                <button id="startBtn" disabled class="w-full py-3 md:py-4 bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 text-white font-bold text-lg md:text-xl rounded-xl border-2 border-yellow-300 shadow-xl opacity-50 cursor-not-allowed hover:scale-[1.02] active:scale-95 transition-all">
+                    🚀 เริ่มเล่นเกมเลย!
+                </button>
+
+                <button id="mouseOnlyBtn" class="text-xs text-amber-800 underline hover:text-amber-950 block mx-auto pt-2">
+                    เล่นด้วยเมาส์ / ทัชสกรีนโดยไม่ต้องใช้กล้อง
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Certificate / End Screen Overlay Modal -->
+    <div id="certModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md hidden">
+        <div id="certCard" class="certificate-bg max-w-2xl w-full p-6 md:p-10 rounded-2xl border-8 border-double border-amber-800 shadow-2xl relative text-center">
+            
+            <!-- Decorative Corners -->
+            <div class="absolute top-2 left-2 text-2xl text-amber-800">⚜️</div>
+            <div class="absolute top-2 right-2 text-2xl text-amber-800">⚜️</div>
+            <div class="absolute bottom-2 left-2 text-2xl text-amber-800">⚜️</div>
+            <div class="absolute bottom-2 right-2 text-2xl text-amber-800">⚜️</div>
+
+            <!-- Header Badge -->
+            <div class="text-4xl md:text-5xl mb-2">🏆</div>
+            <h2 class="heading-font text-2xl md:text-3xl font-bold text-amber-950 tracking-wide">
+                ใบประกาศนียบัตรเกียรติยศ
+            </h2>
+            <p class="text-amber-800 text-sm font-semibold mt-1">
+                ขอมอบประกาศนียบัตรฉบับนี้เพื่อแสดงว่า
+            </p>
+
+            <!-- Interactive Name Input field for Student -->
+            <div class="my-6">
+                <input type="text" id="studentNameInput" placeholder="พิมพ์ ชื่อ-นามสกุล ของนักเรียนที่นี่" class="dashed-input text-xl md:text-2xl font-bold text-amber-900 w-full max-w-md py-1 placeholder-amber-400">
+                <p class="text-[11px] text-amber-700 mt-1">* กรุณากรอกชื่อผู้เล่นก่อนแคปหน้าจอส่งคุณครู</p>
+            </div>
+
+            <p class="text-amber-900 text-xs md:text-base leading-relaxed">
+                ได้รับการยกย่องเป็น <span class="font-bold text-amber-700 text-lg">"นักประวัติศาสตร์น้อย"</span> <br>
+                ผู้มีความเชี่ยวชาญในการคัดแยกยุคสมัยประวัติศาสตร์ไทย
+            </p>
+
+            <!-- Score Summary Box -->
+            <div class="my-6 bg-amber-100/90 border-2 border-amber-600 rounded-xl p-4 inline-block px-8 shadow-inner">
+                <div class="text-xs text-amber-800 font-bold uppercase">คะแนนรวมที่ทำได้</div>
+                <div id="finalScore" class="text-4xl md:text-5xl font-extrabold text-amber-900 my-1 font-mono">0</div>
+                <div id="rankBadge" class="text-xs font-bold px-3 py-1 bg-amber-800 text-amber-100 rounded-full inline-block mt-1">
+                    ระดับ: นักสำรวจฝึกหัด ⭐
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col sm:flex-row gap-3 justify-center mt-4">
+                <button id="restartBtn" class="px-6 py-3 bg-amber-700 hover:bg-amber-800 text-white font-bold rounded-xl border border-amber-500 shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-rotate-right"></i> เล่นอีกครั้ง
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ==========================================================================
+           HISTORICAL DATASET FOR ERA CATEGORIZATION
+           ========================================================================== */
+        const historicalData = [
+            // สุโขทัย (sukhothai)
+            { w: 'พ่อขุนรามคำแหง', e: '👑', era: 'sukhothai', c: '#0891b2' },
+            { w: 'ศิลาจารึก', e: '📜', era: 'sukhothai', c: '#0891b2' },
+            { w: 'นางนพมาศ', e: '🪷', era: 'sukhothai', c: '#0891b2' },
+            { w: 'ลายสือไทย', e: '✍️', era: 'sukhothai', c: '#0891b2' },
+            { w: 'เครื่องสังคโลก', e: '🏺', era: 'sukhothai', c: '#0891b2' },
+
+            // อยุธยา (ayutthaya)
+            { w: 'พระนเรศวร', e: '⚔️', era: 'ayutthaya', c: '#ea580c' },
+            { w: 'ค่ายบางระจัน', e: '🛡️', era: 'ayutthaya', c: '#ea580c' },
+            { w: 'สมเด็จพระนารายณ์', e: '📜', era: 'ayutthaya', c: '#ea580c' },
+            { w: 'เสียกรุงครั้งที่ ๒', e: '🏰', era: 'ayutthaya', c: '#ea580c' },
+            { w: 'เรือสำเภาค้าขาย', e: '⛵', era: 'ayutthaya', c: '#ea580c' },
+
+            // ธนบุรี (thonburi)
+            { w: 'พระเจ้าตากสิน', e: '🐎', era: 'thonburi', c: '#9333ea' },
+            { w: 'กู้เอกราช', e: '🗡️', era: 'thonburi', c: '#9333ea' },
+            { w: 'ค่ายบางกุ้ง', e: '🧱', era: 'thonburi', c: '#9333ea' },
+            { w: 'กรุงธนบุรี', e: '🌊', era: 'thonburi', c: '#9333ea' },
+
+            // รัตนโกสินทร์ (rattanakosin)
+            { w: 'วัดพระแก้ว', e: '🛕', era: 'rattanakosin', c: '#ca8a04' },
+            { w: 'รัชกาลที่ ๕', e: '👑', era: 'rattanakosin', c: '#ca8a04' },
+            { w: 'การเลิกทาส', e: '🕊️', era: 'rattanakosin', c: '#ca8a04' },
+            { w: 'รถไฟไทยสายแรก', e: '🚂', era: 'rattanakosin', c: '#ca8a04' },
+            { w: 'สะพานพุทธ', e: '🌉', era: 'rattanakosin', c: '#ca8a04' }
+        ];
+
+        /* ==========================================================================
+           GAME ENGINE STATE & CONSTANTS
+           ========================================================================== */
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const videoElement = document.getElementById('webcam');
+
+        // UI Element References
+        const startModal = document.getElementById('startModal');
+        const certModal = document.getElementById('certModal');
+        const startBtn = document.getElementById('startBtn');
+        const mouseOnlyBtn = document.getElementById('mouseOnlyBtn');
+        const restartBtn = document.getElementById('restartBtn');
+        const cameraStatus = document.getElementById('cameraStatus');
+        const timerText = document.getElementById('timerText');
+        const scoreText = document.getElementById('scoreText');
+        const finalScore = document.getElementById('finalScore');
+        const rankBadge = document.getElementById('rankBadge');
+        const hud = document.getElementById('hud');
+        const eraDock = document.getElementById('eraDock');
+
+        // Game State Variables
+        let gameState = 'START'; // 'START', 'PLAYING', 'ENDED'
+        let score = 0;
+        let timeRemaining = 60;
+        let timerInterval = null;
+        let cameraReady = false;
+        let useMouseFallback = false;
+
+        // Physics Entities
+        let fallingItems = [];
+        let grabbedItem = null;
+        let spawnTimer = 0;
+        const SPAWN_INTERVAL = 120; // Frames (~2 sec)
+
+        // Hand & Cursor Tracking
+        let handCursor = { x: 0, y: 0, isPinching: false };
+        let handLandmarks = null;
+
+        // Pointer/Mouse Tracking
+        let isPointerDown = false;
+        let pointerCoords = { x: 0, y: 0 };
+
+        /* ==========================================================================
+           CANVAS & RESIZING ENGINE
+           ========================================================================== */
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        /* ==========================================================================
+           FALLING ITEM CLASS DEFINITION
+           ========================================================================== */
+        class FallingItem {
+            constructor(data) {
+                this.data = data;
+                this.width = Math.min(canvas.width * 0.2, 170);
+                this.height = 65;
+                this.x = Math.random() * (canvas.width - this.width - 40) + 20;
+                this.y = -this.height;
+                this.speed = 1.2 + Math.random() * 0.8; // Gentle falling speed for readability
+                this.isGrabbed = false;
+                this.id = Math.random().toString(36).substr(2, 9);
+            }
+
+            update() {
+                if (this.isGrabbed) {
+                    // Smoothly follow hand / cursor position
+                    const targetX = handCursor.x - this.width / 2;
+                    const targetY = handCursor.y - this.height / 2;
+                    this.x += (targetX - this.x) * 0.3;
+                    this.y += (targetY - this.y) * 0.3;
+                } else {
+                    // Fall downwards normally
+                    this.y += this.speed;
+                }
+            }
+
+            draw(ctx) {
+                ctx.save();
+
+                // Card Shadow
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
+                ctx.shadowBlur = 12;
+                ctx.shadowOffsetY = 6;
+
+                // Card Background (Yellow-tinted if grabbed)
+                ctx.beginPath();
+                ctx.roundRect(this.x, this.y, this.width, this.height, 14);
+                ctx.fillStyle = this.isGrabbed ? '#fef3c7' : '#ffffff';
+                ctx.fill();
+
+                // Card Border (Dark Brown or Brass Accent)
+                ctx.lineWidth = this.isGrabbed ? 3 : 2;
+                ctx.strokeStyle = this.isGrabbed ? '#d97706' : '#52341b';
+                ctx.stroke();
+
+                ctx.shadowColor = 'transparent';
+
+                // Emoji Icon Box
+                const emojiSize = 28;
+                ctx.font = `${emojiSize}px sans-serif`;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.data.e, this.x + 12, this.y + this.height / 2);
+
+                // Word / Historical Label
+                ctx.fillStyle = '#36210f';
+                ctx.font = 'bold 15px "Mali", cursive';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                
+                // Truncate text if too long
+                let text = this.data.w;
+                if (text.length > 10) {
+                    text = text.substring(0, 9) + '...';
+                }
+                ctx.fillText(text, this.x + 50, this.y + this.height / 2);
+
+                ctx.restore();
+            }
+
+            containsPoint(px, py) {
+                return (
+                    px >= this.x &&
+                    px <= this.x + this.width &&
+                    py >= this.y &&
+                    py <= this.y + this.height
+                );
+            }
+        }
+
+        /* ==========================================================================
+           MEDIAPIPE HANDS SETUP & WEBCAM PIPELINE
+           ========================================================================== */
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
+        });
+
+        hands.onResults(onHandResults);
+
+        // Initialize WebCam via MediaPipe Camera Utility
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                if (!useMouseFallback) {
+                    await hands.send({ image: videoElement });
+                }
+            },
+            width: 1280,
+            height: 720
+        });
+
+        camera.start().then(() => {
+            cameraReady = true;
+            cameraStatus.innerHTML = '<span class="text-green-700">✓ กล้องและระบบ AR พร้อมใช้งานแล้ว!</span>';
+            startBtn.disabled = false;
+            startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }).catch((err) => {
+            console.warn("Camera failed or denied. Falling back to mouse mode.", err);
+            cameraStatus.innerHTML = '<span class="text-amber-800">⚠️ ไม่พบกล้อง - สลับเป็นโหมดเมาส์/สัมผัสโดยอัตโนมัติ</span>';
+            useMouseFallback = true;
+            startBtn.disabled = false;
+            startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        });
+
+        /* ==========================================================================
+           HAND TRACKING & PINCH GESTURE LOGIC
+           ========================================================================== */
+        function onHandResults(results) {
+            if (gameState !== 'PLAYING') return;
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                handLandmarks = results.multiHandLandmarks[0];
+
+                // Mirrors image coordinates (X flipped because webcam is mirrored)
+                const thumbTip = handLandmarks[4];
+                const indexTip = handLandmarks[8];
+
+                // Compute screen coordinates (Mirrored Canvas)
+                const tx = (1 - thumbTip.x) * canvas.width;
+                const ty = thumbTip.y * canvas.height;
+                const ix = (1 - indexTip.x) * canvas.width;
+                const iy = indexTip.y * canvas.height;
+
+                // Midpoint of thumb and index tips
+                handCursor.x = (tx + ix) / 2;
+                handCursor.y = (ty + iy) / 2;
+
+                // Calculate normalized pinch distance
+                const distance = Math.hypot(tx - ix, ty - iy);
+                const pinchThreshold = 55; // Pixels threshold for pinch
+
+                const previousPinch = handCursor.isPinching;
+                handCursor.isPinching = distance < pinchThreshold;
+
+                // Trigger Grab / Release Logic
+                handleGrabLogic(previousPinch, handCursor.isPinching);
+            } else {
+                handLandmarks = null;
+                if (grabbedItem) {
+                    releaseGrabbedItem();
+                }
+            }
+        }
+
+        /* ==========================================================================
+           GRAB & DROP LOGIC
+           ========================================================================== */
+        function handleGrabLogic(wasPinching, isPinching) {
+            // Pinch Started -> Try Grab
+            if (!wasPinching && isPinching) {
+                for (let i = fallingItems.length - 1; i >= 0; i--) {
+                    const item = fallingItems[i];
+                    if (item.containsPoint(handCursor.x, handCursor.y)) {
+                        grabbedItem = item;
+                        item.isGrabbed = true;
+                        break;
+                    }
+                }
+            }
+            // Pinch Released -> Drop Item
+            else if (wasPinching && !isPinching) {
+                if (grabbedItem) {
+                    releaseGrabbedItem();
+                }
+            }
+        }
+
+        function releaseGrabbedItem() {
+            if (!grabbedItem) return;
+
+            // Check if dropped into any of the 4 Era Target Boxes
+            const eraBoxes = ['sukhothai', 'ayutthaya', 'thonburi', 'rattanakosin'];
+            let droppedInBox = null;
+
+            const itemCenterX = grabbedItem.x + grabbedItem.width / 2;
+            const itemCenterY = grabbedItem.y + grabbedItem.height / 2;
+
+            eraBoxes.forEach(era => {
+                const boxEl = document.getElementById(`box-${era}`);
+                const rect = boxEl.getBoundingClientRect();
+                const containerRect = canvas.getBoundingClientRect();
+
+                // Convert DOM rect to Canvas coordinates
+                const boxLeft = rect.left - containerRect.left;
+                const boxRight = rect.right - containerRect.left;
+                const boxTop = rect.top - containerRect.top;
+                const boxBottom = rect.bottom - containerRect.top;
+
+                if (
+                    itemCenterX >= boxLeft &&
+                    itemCenterX <= boxRight &&
+                    itemCenterY >= boxTop &&
+                    itemCenterY <= boxBottom
+                ) {
+                    droppedInBox = era;
+                }
+            });
+
+            if (droppedInBox) {
+                // Check Correctness
+                if (grabbedItem.data.era === droppedInBox) {
+                    // CORRECT MATCH
+                    score += 10;
+                    scoreText.innerText = score;
+
+                    // UI Effects
+                    triggerBoxAnimation(droppedInBox, 'correct');
+                    showFloatingText(`+10 ${grabbedItem.data.w}`, handCursor.x, handCursor.y, '#16a34a');
+
+                    // Remove item from canvas
+                    fallingItems = fallingItems.filter(i => i.id !== grabbedItem.id);
+                } else {
+                    // INCORRECT MATCH
+                    triggerBoxAnimation(droppedInBox, 'incorrect');
+                    showFloatingText('ผิดยุค!', handCursor.x, handCursor.y, '#dc2626');
+                    
+                    // Reset item grabbed status & drop it back
+                    grabbedItem.isGrabbed = false;
+                }
+            } else {
+                // Dropped outside boxes
+                grabbedItem.isGrabbed = false;
+            }
+
+            grabbedItem = null;
+        }
+
+        /* ==========================================================================
+           UI ANIMATIONS & FLOATING FEEDBACK TEXT
+           ========================================================================== */
+        function triggerBoxAnimation(era, status) {
+            const boxEl = document.getElementById(`box-${era}`);
+            if (status === 'correct') {
+                boxEl.classList.add('animate-pop', 'gold-border-glow');
+                setTimeout(() => {
+                    boxEl.classList.remove('animate-pop', 'gold-border-glow');
+                }, 500);
+            } else {
+                boxEl.classList.add('animate-shake');
+                setTimeout(() => {
+                    boxEl.classList.remove('animate-shake');
+                }, 450);
+            }
+        }
+
+        function showFloatingText(msg, x, y, color) {
+            const container = document.getElementById('popupContainer');
+            const el = document.createElement('div');
+            el.className = 'absolute font-bold text-xl md:text-2xl transition-all duration-700 pointer-events-none drop-shadow-md';
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+            el.style.color = color;
+            el.innerText = msg;
+
+            container.appendChild(el);
+
+            // Animate Floating Upwards
+            requestAnimationFrame(() => {
+                el.style.transform = 'translateY(-60px) scale(1.1)';
+                el.style.opacity = '0';
+            });
+
+            setTimeout(() => {
+                el.remove();
+            }, 750);
+        }
+
+        /* ==========================================================================
+           MOUSE & TOUCH EVENT LISTENERS (FALLBACK)
+           ========================================================================== */
+        function getCanvasCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            const coords = getCanvasCoords(e);
+            handCursor.x = coords.x;
+            handCursor.y = coords.y;
+            const prev = handCursor.isPinching;
+            handCursor.isPinching = true;
+            handleGrabLogic(prev, true);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const coords = getCanvasCoords(e);
+            handCursor.x = coords.x;
+            handCursor.y = coords.y;
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            const prev = handCursor.isPinching;
+            handCursor.isPinching = false;
+            handleGrabLogic(prev, false);
+        });
+
+        // Touch support for mobile devices
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const coords = getCanvasCoords(e);
+            handCursor.x = coords.x;
+            handCursor.y = coords.y;
+            const prev = handCursor.isPinching;
+            handCursor.isPinching = true;
+            handleGrabLogic(prev, true);
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const coords = getCanvasCoords(e);
+            handCursor.x = coords.x;
+            handCursor.y = coords.y;
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const prev = handCursor.isPinching;
+            handCursor.isPinching = false;
+            handleGrabLogic(prev, false);
+        }, { passive: false });
+
+        /* ==========================================================================
+           MAIN GAME RENDER LOOP
+           ========================================================================== */
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (gameState === 'PLAYING') {
+                // 1. Draw WebCam Video Feed Background (Mirrored)
+                if (videoElement.readyState >= 2 && !useMouseFallback) {
+                    ctx.save();
+                    ctx.scale(-1, 1);
+                    ctx.drawImage(videoElement, -canvas.width, 0, canvas.width, canvas.height);
+                    ctx.restore();
+
+                    // Semi-transparent vintage tint over camera feed
+                    ctx.fillStyle = 'rgba(54, 33, 15, 0.25)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                } else {
+                    // Fallback Decorative Canvas Background
+                    ctx.fillStyle = '#f7f2e7';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+
+                // 2. Draw MediaPipe Hand Landmarks Overlay
+                if (handLandmarks && !useMouseFallback) {
+                    drawHandSkeleton(handLandmarks);
+                }
+
+                // 3. Spawn Historical Falling Items
+                spawnTimer++;
+                if (spawnTimer >= SPAWN_INTERVAL) {
+                    spawnTimer = 0;
+                    const randomData = historicalData[Math.floor(Math.random() * historicalData.length)];
+                    fallingItems.push(new FallingItem(randomData));
+                }
+
+                // 4. Update & Render Falling Items
+                for (let i = fallingItems.length - 1; i >= 0; i--) {
+                    const item = fallingItems[i];
+                    item.update();
+                    item.draw(ctx);
+
+                    // Reset or remove items that fall past screen bottom
+                    if (item.y > canvas.height + 100) {
+                        fallingItems.splice(i, 1);
+                    }
+                }
+
+                // 5. Render Giant Stylized Floating Tracking Cursor
+                drawTrackingCursor();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        /* ==========================================================================
+           HAND SKELETON & CURSOR DRAWING UTILITIES
+           ========================================================================== */
+        function drawHandSkeleton(landmarks) {
+            ctx.save();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#fbbf24'; // Shimmering Gold lines
+            ctx.fillStyle = '#ffffff';
+
+            // Custom skeleton connections
+            const connections = [
+                [0,1],[1,2],[2,3],[3,4],
+                [0,5],[5,6],[6,7],[7,8],
+                [5,9],[9,10],[10,11],[11,12],
+                [9,13],[13,14],[14,15],[15,16],
+                [13,17],[17,18],[18,19],[19,20],[0,17]
+            ];
+
+            connections.forEach(([i, j]) => {
+                const pt1 = landmarks[i];
+                const pt2 = landmarks[j];
+                ctx.beginPath();
+                ctx.moveTo((1 - pt1.x) * canvas.width, pt1.y * canvas.height);
+                ctx.lineTo((1 - pt2.x) * canvas.width, pt2.y * canvas.height);
+                ctx.stroke();
+            });
+
+            // Joint Dots
+            landmarks.forEach((pt) => {
+                ctx.beginPath();
+                ctx.arc((1 - pt.x) * canvas.width, pt.y * canvas.height, 5, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+
+            ctx.restore();
+        }
+
+        function drawTrackingCursor() {
+            ctx.save();
+            ctx.font = '36px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // Show Pinch Emoji (🤏) or Open Palm (🖐️)
+            const cursorEmoji = handCursor.isPinching ? '🤏' : '🖐️';
+            
+            // Subtle glow backdrop behind tracking cursor
+            ctx.shadowColor = handCursor.isPinching ? '#fbbf24' : '#ffffff';
+            ctx.shadowBlur = 15;
+
+            ctx.fillText(cursorEmoji, handCursor.x, handCursor.y);
+            ctx.restore();
+        }
+
+        /* ==========================================================================
+           GAME LIFECYCLE MANAGEMENT
+           ========================================================================== */
+        function startGame() {
+            gameState = 'PLAYING';
+            score = 0;
+            timeRemaining = 60;
+            fallingItems = [];
+            grabbedItem = null;
+
+            scoreText.innerText = '0';
+            timerText.innerText = '60s';
+
+            // Hide Start Modal
+            startModal.classList.add('hidden');
+            certModal.classList.add('hidden');
+
+            // Show HUD & Dock
+            hud.classList.remove('opacity-0');
+            eraDock.classList.remove('opacity-0');
+
+            // Spawn initial historical item immediately
+            const randomData = historicalData[Math.floor(Math.random() * historicalData.length)];
+            fallingItems.push(new FallingItem(randomData));
+
+            // Start 60-second Countdown Timer
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timeRemaining--;
+                timerText.innerText = `${timeRemaining}s`;
+
+                if (timeRemaining <= 0) {
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        function endGame() {
+            gameState = 'ENDED';
+            clearInterval(timerInterval);
+
+            // Hide HUD & Dock
+            hud.classList.add('opacity-0');
+            eraDock.classList.add('opacity-0');
+
+            // Compute Final Rating Rank
+            finalScore.innerText = score;
+            let rankText = 'ระดับ: นักเรียนฝึกหัด 📜';
+            if (score >= 120) {
+                rankText = 'ระดับ: มหาปราชญ์ประวัติศาสตร์ 👑⭐';
+            } else if (score >= 80) {
+                rankText = 'ระดับ: นักประวัติศาสตร์อาวุโส 🎖️';
+            } else if (score >= 40) {
+                rankText = 'ระดับ: นักสำรวจยุคสมัย 🔍';
+            }
+            rankBadge.innerText = rankText;
+
+            // Show Certificate Modal
+            certModal.classList.remove('hidden');
+        }
+
+        /* ==========================================================================
+           BUTTON EVENT LISTENERS
+           ========================================================================== */
+        startBtn.addEventListener('click', startGame);
+
+        mouseOnlyBtn.addEventListener('click', () => {
+            useMouseFallback = true;
+            startGame();
+        });
+
+        restartBtn.addEventListener('click', () => {
+            certModal.classList.add('hidden');
+            startGame();
+        });
+
+        /* ==========================================================================
+           INIT ON LOAD
+           ========================================================================== */
+        window.onload = function () {
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
